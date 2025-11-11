@@ -1,5 +1,5 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
 const app = express();
 const port = 3000;
@@ -31,22 +31,28 @@ async function run() {
 
 
 
-        app.post('/create-event', async(req, res) => {
+        app.post('/create-event', async (req, res) => {
             const eventData = req.body;
             const result = await createEvent.insertOne(eventData);
             res.send(result)
-           
+
         })
 
 
-        app.get('/events', async(req, res) => {
+        app.get('/events', async (req, res) => {
 
             const result = await createEvent.find().toArray()
             res.send(result)
         })
 
 
-
+        app.get('/event-details/:id', async (req, res) => {
+            const {id} = req.params;
+            const query = {_id: new ObjectId(id)}
+            const result = await createEvent.findOne(query)
+            res.send(result)
+            console.log(id)
+        })
 
 
         await client.db("admin").command({ ping: 1 });

@@ -46,12 +46,12 @@ async function run() {
         })
 
 
-        app.get('/event-details/:id', async (req, res) => {
+        app.get(['/event-details/:id', '/edit-event/:id'], async (req, res) => {
             const { id } = req.params;
             const query = { _id: new ObjectId(id) }
             const result = await createEvent.findOne(query)
             res.send(result)
-            console.log(id)
+
         })
 
         // need middleware
@@ -67,6 +67,35 @@ async function run() {
             const result = await joinEvent.find(query).toArray()
             res.send(result)
         })
+
+
+        app.get('/manage-event', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email }
+            const result = await createEvent.find(query).toArray()
+            res.send(result)
+        })
+
+
+        app.put('/update-event/:id', async (req, res) => {
+            const { id } = req.params;
+            const updatedData = req.body;
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    plot: updatedData
+                }
+            };
+
+            const result = await movies.updateOne(filter, updateDoc, options);
+            res.send(result);
+
+        })
+
+
+
+
+
 
 
 

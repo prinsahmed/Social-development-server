@@ -28,7 +28,7 @@ async function run() {
 
         const eventDB = client.db('eventDB');
         const createEvent = eventDB.collection('createEvent')
-
+        const joinEvent = eventDB.collection('joinEvent')
 
 
         app.post('/create-event', async (req, res) => {
@@ -47,12 +47,28 @@ async function run() {
 
 
         app.get('/event-details/:id', async (req, res) => {
-            const {id} = req.params;
-            const query = {_id: new ObjectId(id)}
+            const { id } = req.params;
+            const query = { _id: new ObjectId(id) }
             const result = await createEvent.findOne(query)
             res.send(result)
             console.log(id)
         })
+
+        // need middleware
+        app.post('/join-event', async (req, res) => {
+            const joinEventData = req.body;
+            const result = await joinEvent.insertOne(joinEventData);
+            res.send(result);
+        })
+
+        app.get('/joined-event', async (req, res) => {
+            const email = req.query.email;
+            const query = { email: email }
+            const result = await joinEvent.find(query).toArray()
+            res.send(result)
+        })
+
+
 
 
         await client.db("admin").command({ ping: 1 });

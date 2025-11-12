@@ -1,5 +1,7 @@
 const express = require('express');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const admin = require("firebase-admin");
+const serviceAccount = require("./serviceAccountKey.json");
 const cors = require('cors');
 const app = express();
 const port = 3000;
@@ -9,6 +11,10 @@ app.use(express.json())
 app.use(cors());
 
 
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+});
 
 
 
@@ -29,10 +35,64 @@ async function run() {
         const eventDB = client.db('eventDB');
         const createEvent = eventDB.collection('createEvent')
         const joinEvent = eventDB.collection('joinEvent')
+        const today = new Date();
+
+
+
+
+        async function authenticateToken(req, res, next) {
+            const authHeader = req.headers.authorization;
+
+            if (!authHeader) {
+                return res.status(401).send({ error: "No token provided" });
+            }
+
+            const idToken = authHeader.split(" ")[1];
+
+            try {
+
+                const decodedToken = await admin.auth().verifyIdToken(idToken);
+                req.user = decodedToken;
+
+
+                next();
+            } catch (err) {
+
+                console.error(err);
+                res.status(401).send({ error: "Invalid or expired token" });
+            }
+        }
+
+
+
+
 
 
         app.post('/create-event', async (req, res) => {
             const eventData = req.body;
+            const { title, description, eventType, selectedDate, location, photoURL } = eventData;
+
+
+            if (!title || title.trim() === "") {
+                return res.status(400).send({ error: "Title is required" });
+            }
+            if (!description || description.trim().length < 10) {
+                return res.status(400).send({ error: "Description must be at least 10 characters" });
+            }
+            if (!["Cleanup", "Plantation", "Donation"].includes(eventType)) {
+                return res.status(400).send({ error: "Invalid event type" });
+            }
+            if (!selectedDate || new Date(selectedDate) < new Date()) {
+                return res.status(400).send({ error: "Date must be in the future" });
+            }
+            if (!location || location.length === 0) {
+                return res.status(400).send({ error: "Location is required" });
+            }
+            if (!photoURL) {
+                return res.status(400).send({ error: "Photo is required" });
+            }
+
+
             const result = await createEvent.insertOne(eventData);
             res.send(result)
 
@@ -40,8 +100,21 @@ async function run() {
 
 
         app.get('/events', async (req, res) => {
+            const result = await createEvent.aggregate([
 
-            const result = await createEvent.find().toArray()
+                {
+                    $addFields: {
+                        selectedDateObj: { $toDate: "$selectedDate" }
+                    }
+                },
+                {
+                    $match: {
+                        selectedDateObj: { $gte: today }
+                    }
+                },
+                { $sort: { selectedDateObj: 1 } }
+            ]).toArray();
+
             res.send(result)
         })
 
@@ -54,22 +127,27 @@ async function run() {
 
         })
 
-        // need middleware
+
         app.post('/join-event', async (req, res) => {
             const joinEventData = req.body;
             const result = await joinEvent.insertOne(joinEventData);
             res.send(result);
+            console.log(joinEventData);
         })
 
-        app.get('/joined-event', async (req, res) => {
+        app.get('/joined-event', authenticateToken, async (req, res) => {
             const email = req.query.email;
-            const query = { email: email }
-            const result = await joinEvent.find(query).toArray()
+            const query = {
+                email: email
+            };
+            const sortFields = { selectedDate: -1 }
+            const result = await joinEvent.find(query).sort(sortFields).toArray()
             res.send(result)
+
         })
 
 
-        app.get('/manage-event', async (req, res) => {
+        app.get('/manage-event', authenticateToken, async (req, res) => {
             const email = req.query.email;
             const query = { email: email }
             const result = await createEvent.find(query).toArray()
@@ -77,26 +155,22 @@ async function run() {
         })
 
 
-        app.put('/update-event/:id', async (req, res) => {
+        app.put('/update-event/:id', authenticateToken, async (req, res) => {
             const { id } = req.params;
+            const query = { _id: new ObjectId(id) }
             const updatedData = req.body;
             const options = { upsert: true };
             const updateDoc = {
                 $set: {
-                    plot: updatedData
+                    ...updatedData
                 }
             };
 
-            const result = await movies.updateOne(filter, updateDoc, options);
+            const result = await createEvent.updateOne(query, updateDoc, options);
             res.send(result);
 
+
         })
-
-
-
-
-
-
 
 
 

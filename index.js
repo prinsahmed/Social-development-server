@@ -5,7 +5,11 @@ const serviceAccount = require("./serviceAccountKey.json");
 const cors = require('cors');
 const app = express();
 const port = 3000;
+const dotenv = require('dotenv')
 
+
+
+dotenv.config();
 
 app.use(express.json())
 app.use(cors());
@@ -18,8 +22,8 @@ admin.initializeApp({
 
 
 
-const uri = "mongodb+srv://myserver:1O7RI49eqHqgu6e7@cluster0.ufqnoyu.mongodb.net/?appName=Cluster0";
 
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@${process.env.DB_CLUSTER}.mongodb.net/${process.env.DB_NAME}?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, {
     serverApi: {
         version: ServerApiVersion.v1,
@@ -70,7 +74,7 @@ async function run() {
 
         app.post('/create-event', async (req, res) => {
             const eventData = req.body;
-            const { title, description, eventType, selectedDate, location, photoURL } = eventData;
+            const { title, description, eventCat, selectedDate, location, photoURL } = eventData;
 
 
             if (!title || title.trim() === "") {
@@ -79,7 +83,7 @@ async function run() {
             if (!description || description.trim().length < 10) {
                 return res.status(400).send({ error: "Description must be at least 10 characters" });
             }
-            if (!["Cleanup", "Plantation", "Donation"].includes(eventType)) {
+            if (!["Cleanup", "Plantation", "Donation", "Awareness"].includes(eventCat)) {
                 return res.status(400).send({ error: "Invalid event type" });
             }
             if (!selectedDate || new Date(selectedDate) < new Date()) {
@@ -100,6 +104,9 @@ async function run() {
 
 
         app.get('/events', async (req, res) => {
+            const { category, q } = req.query;
+            console.log(q, category);
+
             const result = await createEvent.aggregate([
 
                 {
@@ -109,11 +116,24 @@ async function run() {
                 },
                 {
                     $match: {
-                        selectedDateObj: { $gte: today }
+                        selectedDateObj: { $gte: today },
+                        ...(category ? { eventCat: category } : {}),
+                        ...(q
+                            ? {
+                                $or: [
+                                    { title: { $regex: q.trim(), $options: "i" } },
+                                ]
+                            }
+                            : {})
                     }
+
                 },
                 { $sort: { selectedDateObj: 1 } }
+
             ]).toArray();
+
+
+
 
             res.send(result)
         })
@@ -184,3 +204,7 @@ run().catch(console.dir);
 
 
 app.listen(port)
+
+
+
+
